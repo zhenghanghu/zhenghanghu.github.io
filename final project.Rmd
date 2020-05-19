@@ -1,0 +1,311 @@
+---
+title: "Income classification on UCI adult dataset with logistic regression"
+author: "Zhenghang Hu, Cicong Tian"
+date: "May 18, 2020"
+output: html_document
+---
+
+```{r setup, 1, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+```
+
+# **Introduction**
+Hello! And welcome to our first tutorial! In this tutorial, we will analyze data from UCI adult dataset. We will visualize and try to predict whether the income of a person exceeds 50K per year based on some census data. We will use methods and tools that were taught in class in addition to other tools we have researched.
+To be more specific, We will use logistic regression model to find the relationship between earning a high income and census(age, education, occupation, sex, country, etc.)
+Generally, cleaning data consumes a lot of time compared with the working with code used for building the model. This project will try to observe the problems occuring while cleaning the data and predicting the accuracy of the models applied on this dataset.
+
+# **Libraries**
+For this walkthrough, we are going to be using R. And before we continue, we are going to need to download certain libraries in order to be able to take full advantage of R.
+
+```{r import, 6, warning=FALSE, message=FALSE}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(broom)
+library(caret)
+library(shiny)
+library(cowplot)
+library(caTools)
+library(Amelia)
+```
+
+# **Loading/Preparing Data**
+
+### Loading Dataset
+The Adult Data Set is downloaded from University of California, Irvine University’s Machine Learning Repository. The data contains anonymous information such as age, occupation, education, working class, etc. The goal is to train a binary classifier to predict the income which has two possible values ‘>50K’ and ‘<50K’. There are 48842 instances and 15 attributes in the dataset. The data contains a good blend of categorical, numerical and missing values.
+
+Listing of key attributes in dataset:
+
+- Age – the age of the person
+- Workclass – the type of work the person does (Private, Self-emp-not-inc, Self-emp-inc, Federal-gov, Local-gov, State-gov, Without-pay, Never-worked)
+- Education – the highest level of education the person received
+- Martial Status – the status of martial (Married-civ-spouse, Divorced, Never-married, Separated, Widowed, Married-spouse-absent, Married-AF-spouse)
+- Occupation – the occupation of the person (Tech-support, Craft-repair, Other-service, Sales, Exec-managerial, Prof-specialty, Handlers-cleaners, Machine-op-inspct, Adm- clerical, Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv, Armed-Forces)
+- Race – A categorical variable: White, Asian-Pac-Islander, Amer-Indian-Eskimo,Black, other.
+- Sex - the sex of the person (male, female)
+- Hours per week - Working hours per week
+- Native Country - The country that the person is from
+
+Here we load the data locally to be able to manipulate it and use it later. Let’s take a look at a small portion of our data.
+
+```{r, justice_data, 1}
+adult <- read.csv("adult.csv")
+head(adult)
+```
+
+Checking the structure of the data.
+
+```{r, score_data, 1}
+str(adult)
+```
+
+Checking the Summary of the data.
+```{r, score_data, 2}
+summary(adult)
+```
+
+### Tidying Our Dataset
+Now that we have our dataset but we have two problems. One, because our dataset has too much information, it will be impossible to understand in its current stage. We can notice that a lot of columns with cateogrical factors are there, however many of these columns have too many factors than required. In this data cleaning section we'll try to reduce the number of factors by cleaning the columns. Two, we need to deal with the missing data.
+
+### Workclass column
+Using table() for checking the frequency of the workclass column.
+```{r, tidying_data, 1}
+table(adult$workclass)
+
+```
+Null values observed are 2799 and the two smallest groups which we are going to combine are Never-worked and Without-pay. Combining these two smallest groups into a single group called as "Unemployed".
+
+```{r, tidying_data_p1, 8}
+unemp <- function(job_role){
+    job_role <- as.character(job_role)
+    if (job_role=="Never-worked" | job_role=="Without-pay"){
+        return("Unemployed")
+    }else{
+        return(job_role)
+    }
+}
+adult$workclass <- sapply(adult$workclass,unemp)
+table(adult$workclass)
+```
+
+We can also combine State and Local gov jobs called "SL-gov" and combine self-employed jobs called "self-emp".
+```{r, tidying_data_p1, 10}
+grp_emp <- function(job_role){
+    if (job_role=="Local-gov" | job_role=="State-gov"){
+        return("SL-gov")
+    }else if (job_role=="Self-emp-inc" | job_role=="Self-emp-not-inc"){
+        return("self-emp")
+    }else{
+        return(job_role)
+    }
+}
+adult$workclass <- sapply(adult$workclass,grp_emp)
+table(adult$workclass)
+```
+
+### Marital Status Column
+Using table() for checking the frequency of the martial status column.
+```{r, tidying_data_p2, 4}
+table(adult$marital.status)
+```
+
+We can reduce three groups from this column as: Married Not-Married Never-Married
+
+```{r, joining_data, 4}
+grp_marital_sts <- function(mart_sts){
+    mart_sts <- as.character(mart_sts)
+    
+    # Not-Married
+    if (mart_sts=="Separated" | mart_sts=="Divorced" | mart_sts=="Widowed"){
+        return("Not-Married")
+    
+    # Never-Married   
+    }else if(mart_sts=="Never-married"){
+        return(mart_sts)
+    
+     #Married
+    }else{
+        return("Married")
+    }
+}
+adult$marital.status <- sapply(adult$marital.status,grp_marital_sts)
+table(adult$marital.status)
+```
+
+### Country Column
+Using table() for checking the frequency of the native country column.
+```{r, joining_data, 6}
+table(adult$native.country)
+```
+
+We will group these countries together into continents. The number of the groups will be reduces significantly.
+
+```{r, joining_data, 7}
+levels(adult$native.country)
+```
+
+Using table() for checking the frequency of the native country column.
+```{r, joining_data, 8}
+Asia <- c("China","Hong","India","Iran","Cambodia","Japan", "Laos","Philippines" ,"Vietnam" ,"Taiwan", "Thailand")
+
+N.A <- c("Canada","United-States","Puerto-Rico")
+
+Europe <- c("England","France","Germany" ,"Greece","Holand-Netherlands","Hungary","Ireland","Italy","Poland","Portugal","Scotland"
+            ,"Yugoslavia")
+
+S.A <- c("Columbia","Cuba","Dominican-Republic","Ecuador","El-Salvador","Guatemala","Haiti","Honduras","Mexico","Nicaragua"
+                   ,"Outlying-US","Peru","Jamaica","Trinadad&Tobago")
+Remaining_count <- c("South")
+
+grp_cntry <- function(cntry){
+    if (cntry %in% Asia){
+        return("Asia")
+    }else if (cntry %in% N.A){
+        return("N.A")
+    }else if (cntry %in% Europe){
+        return("Europe")
+    }else if (cntry %in% S.A){
+        return("S.A")
+    }else{
+        return("Remaining_count")      
+    }
+}
+adult$native.country <- sapply(adult$native.country,grp_cntry)
+table(adult$native.country)
+```
+
+converting data types into factor datatype
+```{r, joining_data, 17}
+adult$workclass <- as.factor(adult$workclass)
+adult$native.country <- as.factor(adult$native.country)
+adult$marital.status <- as.factor(adult$marital.status)
+```
+
+### Missing Data
+Converting any value with a '?' or a ' ?' value to a NA value.
+```{r, joining_data, 27}
+adult[adult == "?"] <- NA
+table(adult$workclass)
+adult$workclass <- as.factor(adult$workclass)
+adult$native.country <- as.factor(adult$native.country)
+adult$marital.status <- as.factor(adult$marital.status)
+adult$occupation <- as.factor(adult$occupation)
+```
+Looking for the missing data using amelia package.
+```{r, joining_data, 37}
+missmap(adult)
+```
+
+We can noticed that using missmap(adult), it is a heatmap pointing out missing values (NA). This gives you a quick glance at how much data is missing.
+
+Using na.omit() we can remove NA values from the adult data frame. Note, every single time there is no need to remvove the missing data, it depends on the situation whether it is good or not. You shouldn't always just drop NA values.
+```{r, joining_data, 47}
+adult <- na.omit(adult)
+missmap(adult)
+```
+
+# **Exploratory Data Analysis**
+
+### Visualizing Data
+At this point, we have cleaned our data. However, at this point the data is still numbers in a table. We need to convert it to visuals in order to truly to see if there is some sort of trend for us to continue. We are going to visualize the data by producing histogram and barplots.
+
+Let's start by plotting histograms for both age and hours per week attributes. We use ggplot to do the plotting. Documentation can be found at [this website](https://www.rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf). 
+```{r, graph_p1, 6}
+ggplot(adult,aes(age)) + geom_histogram(aes(fill=income),color="white",binwidth=1) + theme_bw()
+
+ggplot(adult,aes(hours.per.week)) + geom_histogram(aes(color="red"),bins = 30) + theme_bw()
+```
+
+The visualization of these two attributes give us a few interesting insights on the distribution of values.
+
+1. Most of the indivisuals have an age < 50 while the maximum age is around 90. And We did notice people with age more than 50 have less salary income compared to young people.
+2. Most of the people work around 40 hrs per week. However there are a few who don’t work and a few who work for almost 100 hours a week.
+
+Now we visualize the produced dataset in a bar graph of country. Bar graph is used to visualize the relationship between a continuous variabel to a categorical attributte. 
+```{r, graph_p1, 8}
+ggplot(adult,aes(native.country)) + geom_bar(aes(fill=income))+theme_bw()
+```
+
+From the above plot, we can interpret that the highest number people living in North America earn more than 50k and there are also more number of people earning less than 50k compared with other countries.
+
+# **Predictive Model**
+Classification people into two groups: Above or Below 50k in Salary will be done by building a model using logistic regression.
+
+### Preprocessing Data
+```{r, processing, 27}
+head(adult)
+set.seed(101)
+```
+
+Next, we are going to start my partitioning our dataset, so we may use part of it later for testing purposes.
+
+```{r, partioning, 4}
+# Split up the sample, basically randomly assigns a booleans to a new column "sample"
+sample <- sample.split(adult$income, SplitRatio = 0.70) 
+
+# Training Data
+train = subset(adult, sample == TRUE)
+
+# Testing Data
+test = subset(adult, sample == FALSE)
+```
+
+### Creating Logistic Regression Model
+Logistic Regression is a type of classification model. In classification models, prediction is done with the categorical dependent variables, using one or more independent variables. The independent variables can be either categorical or numerical. The values of Logistic regression is taken between 0 and 1 based on the logistic function.
+
+```{r, downsampling, 2}
+model = glm(income ~ ., family = binomial(logit), data = train)
+summary(model)
+```
+
+By analyzing the coefficients of each attributes, we noticed that age, gender and hours per week are statistically significant and have positive effects on the probability that a person exceeds 50K per year.
+
+### Confusion Matrix on tested data
+
+Now we can use the logistic regression model on data reserved for testing and produce the confusion matrix to see how well our model performs.
+```{r, modeling_p1, warning=FALSE, 14}
+test$predicted.income = predict(model, newdata=test, type="response")
+table(test$income, test$predicted.income > 0.5)
+
+```
+
+Based on confusion matrix, we see that 93%( 9647/10383 ) of the people who don't exceed 50k were classified correctly, however, only 61% ( 2095/3427 ) of the people who exceed 50k were classified correctly. That being said, we have a low false positive rate at the cost of low true positive rate. 
+
+
+Lastly, we can draw a graph that shows the predicted probabilities that each person exceeds 50k along with their actual income status using trained data.
+```{r draw}
+predicted.data <- data.frame(
+  probability.of.income = model$fitted.values,
+  income = train$income
+)
+
+predicted.data <- predicted.data[
+  order(predicted.data$probability.of.income, decreasing=FALSE),
+]
+
+predicted.data$rank <- 1:nrow(predicted.data)
+ggplot(data=predicted.data, aes(x=rank, y=probability.of.income)) +
+  geom_point(aes(color=income),alpha=1,shape=4,stroke=2) +
+  xlab("Index")+
+  ylab("Predicted probability of exceeding 50k")
+```
+
+Great! We can now observe that most of the people exceed 50k (the ones in turquoise) are predicted to have a high probability of exceeding 50k, and most of the people don't exceed 50k (the ones in salmon) are predicted to have low probability of exceeding 50k. Thus, our logistic regression has done a pretty good job.
+
+# **Conclusion**
+
+### Final Thoughts
+
+1. The predictive model we built worked well on trained data but less well on data partitioned for testing. Improvements could be done by using cross-validation, or a different threshold.
+2. We used all of the attributes in the dataset to predict income. However, in real life, some attributes may have no influence on the income and got in the way of data analysis. 
+3. We did notice that we spend more time in data cleaning and removing the missing values than building model.
+
+### Further Resources
+
+If you are interested in further looking at the topic of classifying income using census data, I suggest you take a look at [a similar data analysis done by Python](https://yanhan.github.io/posts/2017-02-15-analysis-of-the-adult-data-set-from-uci-machine-learning-repository.ipynb.html) for a starting place. Also, I also suggest you read [this journal entry](http://robotics.stanford.edu/~ronnyk/nbtree.pdf) because it is suggested by [this website](https://archive.ics.uci.edu/ml/datasets/adult) where I downloaded the audlt dataset. Finally, if you are interested in improving on this model based on better prediction models, I suggest you visit [this tutorial](https://stats.idre.ucla.edu/r/dae/multinomial-logistic-regression/) from UCLA that takes you step-by-step on how to do multi class logistic regression, which is also done in R.
+
+### Citations
+
+- Dobson, A. J. (1990) An Introduction to Generalized Linear Models. London: Chapman and Hall.
+- Venables, W. N. and Ripley, B. D. (2002) Modern Applied Statistics with S. New York: Springer (4th ed).
