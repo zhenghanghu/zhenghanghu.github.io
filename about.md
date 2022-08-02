@@ -26,7 +26,7 @@ titles:
 key: page-about
 ---
 
-Hi! I’m Zhenghang. I received my B.S. in Computer Science at UMD in May, 2022. I’m an incoming software engineer at Meta, and plan to pursue a Ph.D degree after I gain some industry experience. I’m interested in topics in databases such as distributed systems, transactions, commit protocols, etc.
+Hi! I’m Zhenghang. I received my B.S. in Computer Science at UMD in May, 2022. I’m highly interested in understanding and building scalable data infrastrcutures.
 
 [Resume]({{ site.url }}/assets/resume.pdf)  
 [Transcript]({{ site.url }}/assets/Transcript.pdf)
