@@ -26,7 +26,7 @@ titles:
 key: page-about
 ---
 
-Hi! I’m Zhenghang. I received my B.S. in Computer Science at UMD in May, 2022. I’m highly interested in understanding and building scalable data infrastrcutures.
+Hi! I’m Zhenghang. I received my B.S. in Computer Science at UMD in May, 2022. I’m highly interested in understanding and building scalable data infrastructures.
 
 [Resume]({{ site.url }}/assets/resume.pdf)  
 [Transcript]({{ site.url }}/assets/Transcript.pdf)
