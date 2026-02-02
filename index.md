@@ -25,7 +25,7 @@ titles:
   # @end locale config
 key: page-about
 ---
-I work at Meta, and am working on real-time low latency distributed counting service handling QPS at Meta scale. I'm highly interested in understanding and building scalable data infrastructures.
+I work at Meta, and am building real-time low latency distributed counting services handling QPS at Meta scale. I'm highly interested in understanding and building scalable data infrastructures.
 <br>
 Before that, I received my B.S. in Computer Science at UMD in May, 2022.
 
